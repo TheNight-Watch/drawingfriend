@@ -1,63 +1,8 @@
-# 环境变量文件
-.env
-.env.local
-.env.production
-
-# 依赖目录
-node_modules/
-*/node_modules/
-
-# 日志文件
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# 运行时数据
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# macOS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# 编辑器
-.vscode/
-.cursor/
-*.swp
-*.swo
-*~
-
-# 临时文件
-*.tmp
-*.temp
-
-# 上传文件目录
+.env
+backend/.env
 backend/uploads/
-uploads/
-
-# 构建输出
-dist/
-build/
-.next/
-
-# 缓存
-.cache/
-.parcel-cache/
-
-# 测试覆盖率
-coverage/
-
-# Bun
-.bun/
-
-# 其他
-*.tgz
-*.tar.gz 
+Step-Realtime-Console/
+*.log
+node_modules/
+.cursor/
