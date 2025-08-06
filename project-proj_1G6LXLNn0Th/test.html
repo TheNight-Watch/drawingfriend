@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能测试 - 儿童AI故事绘画</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary-color: #FF6B6B;
+            --secondary-color: #4ECDC4;
+            --accent-color: #FFE66D;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">系统功能测试</h1>
+        
+        <!-- 后端服务状态检查 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">🔧 后端服务状态</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-center">
+                    <div class="text-lg font-medium">WebSocket服务</div>
+                    <div id="ws-status" class="text-gray-500">检查中...</div>
+                    <button onclick="testWebSocket()" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded text-sm">测试连接</button>
+                </div>
+                <div class="text-center">
+                    <div class="text-lg font-medium">REST API服务</div>
+                    <div id="api-status" class="text-gray-500">检查中...</div>
+                    <button onclick="testAPI()" class="mt-2 bg-green-500 text-white px-4 py-2 rounded text-sm">测试API</button>
+                </div>
+                <div class="text-center">
+                    <div class="text-lg font-medium">Vision服务</div>
+                    <div id="vision-status" class="text-gray-500">检查中...</div>
+                    <button onclick="testVision()" class="mt-2 bg-purple-500 text-white px-4 py-2 rounded text-sm">测试分析</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片上传测试 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">📸 图片上传测试</h2>
+            <div class="flex flex-col items-center">
+                <input type="file" id="imageInput" accept="image/*" class="mb-4">
+                <button onclick="testImageUpload()" class="bg-blue-500 text-white px-6 py-2 rounded">上传并分析图片</button>
+                <div id="upload-result" class="mt-4 text-sm"></div>
+            </div>
+        </div>
+
+        <!-- 测试结果展示 -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">📊 测试结果</h2>
+            <div id="test-logs" class="bg-gray-100 p-4 rounded font-mono text-sm h-64 overflow-y-auto">
+                测试日志将显示在这里...
+            </div>
+            <button onclick="clearLogs()" class="mt-4 bg-red-500 text-white px-4 py-2 rounded text-sm">清空日志</button>
+        </div>
+    </div>
+
+    <script>
+        // 日志工具
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('test-logs');
+            const colorClass = type === 'error' ? 'text-red-600' : type === 'success' ? 'text-green-600' : 'text-blue-600';
+            logElement.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('test-logs').innerHTML = '';
+        }
+
+        // 更新状态指示器
+        function updateStatus(elementId, status, message) {
+            const element = document.getElementById(elementId);
+            if (status === 'success') {
+                element.innerHTML = `<span class="text-green-600">✅ ${message}</span>`;
+            } else if (status === 'error') {
+                element.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
+            } else {
+                element.innerHTML = `<span class="text-yellow-600">⏳ ${message}</span>`;
+            }
+        }
+
+        // 测试WebSocket连接
+        async function testWebSocket() {
+            log('开始测试WebSocket连接...');
+            updateStatus('ws-status', 'pending', '连接中...');
+            
+            try {
+                const ws = new WebSocket('ws://localhost:8082');
+                
+                ws.onopen = () => {
+                    log('WebSocket连接成功！', 'success');
+                    updateStatus('ws-status', 'success', '连接正常');
+                    ws.close();
+                };
+                
+                ws.onerror = (error) => {
+                    log('WebSocket连接失败: ' + error, 'error');
+                    updateStatus('ws-status', 'error', '连接失败');
+                };
+                
+                ws.onclose = () => {
+                    log('WebSocket连接已关闭');
+                };
+                
+            } catch (error) {
+                log('WebSocket测试异常: ' + error.message, 'error');
+                updateStatus('ws-status', 'error', '测试异常');
+            }
+        }
+
+        // 测试REST API
+        async function testAPI() {
+            log('开始测试REST API...');
+            updateStatus('api-status', 'pending', '测试中...');
+            
+            try {
+                const response = await fetch('http://localhost:3000/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    log('API健康检查成功: ' + JSON.stringify(data), 'success');
+                    updateStatus('api-status', 'success', 'API正常');
+                } else {
+                    log('API响应异常: ' + response.status, 'error');
+                    updateStatus('api-status', 'error', '响应异常');
+                }
+            } catch (error) {
+                log('API测试失败: ' + error.message, 'error');
+                updateStatus('api-status', 'error', '连接失败');
+            }
+        }
+
+        // 测试Vision服务
+        async function testVision() {
+            log('开始测试Vision服务...');
+            updateStatus('vision-status', 'pending', '测试中...');
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/analyze-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imageUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Vision服务测试成功: ' + JSON.stringify(data.analysis), 'success');
+                    updateStatus('vision-status', 'success', data.usingMockData ? '模拟数据' : 'AI分析');
+                } else {
+                    log('Vision服务响应异常: ' + response.status, 'error');
+                    updateStatus('vision-status', 'error', '服务异常');
+                }
+            } catch (error) {
+                log('Vision服务测试失败: ' + error.message, 'error');
+                updateStatus('vision-status', 'error', '测试失败');
+            }
+        }
+
+        // 测试图片上传
+        async function testImageUpload() {
+            const fileInput = document.getElementById('imageInput');
+            const resultDiv = document.getElementById('upload-result');
+            
+            if (!fileInput.files[0]) {
+                alert('请先选择一个图片文件');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            log(`开始上传图片: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`);
+            resultDiv.innerHTML = '<div class="text-blue-600">上传中...</div>';
+            
+            try {
+                // 上传图片
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                const uploadResponse = await fetch('http://localhost:3000/api/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error(`上传失败: ${uploadResponse.status}`);
+                }
+                
+                const uploadResult = await uploadResponse.json();
+                log('图片上传成功: ' + uploadResult.filename, 'success');
+                
+                // 分析图片
+                resultDiv.innerHTML = '<div class="text-blue-600">分析中...</div>';
+                const analysisResponse = await fetch('http://localhost:3000/api/analyze-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imageUrl: `http://localhost:3000${uploadResult.url}`
+                    })
+                });
+                
+                if (!analysisResponse.ok) {
+                    throw new Error(`分析失败: ${analysisResponse.status}`);
+                }
+                
+                const analysisResult = await analysisResponse.json();
+                log('图片分析完成', 'success');
+                
+                // 显示分析结果
+                const analysis = analysisResult.analysis;
+                resultDiv.innerHTML = `
+                    <div class="bg-green-50 border border-green-200 rounded p-4">
+                        <h3 class="font-semibold text-green-800 mb-2">分析结果 ${analysisResult.usingMockData ? '(模拟数据)' : '(AI分析)'}</h3>
+                        <div class="text-sm text-green-700">
+                            <p><strong>场景:</strong> ${analysis.scene}</p>
+                            <p><strong>情绪:</strong> ${analysis.mood}</p>
+                            <p><strong>主要元素:</strong> ${analysis.objects.join(', ')}</p>
+                            <p><strong>主要颜色:</strong> ${analysis.colors.join(', ')}</p>
+                            <p><strong>描述:</strong> ${analysis.description}</p>
+                            <p><strong>故事引导:</strong> ${analysis.storyPrompt}</p>
+                            ${analysis.analysisTime ? `<p><strong>分析耗时:</strong> ${analysis.analysisTime}ms</p>` : ''}
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                log('图片上传测试失败: ' + error.message, 'error');
+                resultDiv.innerHTML = `<div class="text-red-600">测试失败: ${error.message}</div>`;
+            }
+        }
+
+        // 页面加载时自动检查服务状态
+        window.onload = function() {
+            log('页面加载完成，开始检查服务状态...');
+            setTimeout(testAPI, 500);
+            setTimeout(testWebSocket, 1000);
+            setTimeout(testVision, 1500);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket连接测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">WebSocket连接测试</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">连接状态</h2>
+            <div id="status" class="mb-4 p-3 rounded bg-gray-100">未连接</div>
+            
+            <div class="flex gap-2 mb-4">
+                <button onclick="connect()" class="bg-green-500 text-white px-4 py-2 rounded">连接</button>
+                <button onclick="disconnect()" class="bg-red-500 text-white px-4 py-2 rounded">断开</button>
+                <button onclick="sendTest()" class="bg-blue-500 text-white px-4 py-2 rounded">发送测试消息</button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">消息日志</h2>
+            <div id="messages" class="bg-gray-100 p-4 rounded h-64 overflow-y-auto font-mono text-sm">
+                准备连接...
+            </div>
+            <button onclick="clearMessages()" class="mt-2 bg-gray-500 text-white px-3 py-1 rounded text-sm">清空</button>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const messagesDiv = document.getElementById('messages');
+            const colorClass = type === 'error' ? 'text-red-600' : type === 'success' ? 'text-green-600' : 'text-blue-600';
+            messagesDiv.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function updateStatus(status, color = 'bg-gray-100') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = status;
+            statusDiv.className = `mb-4 p-3 rounded ${color}`;
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        function connect() {
+            if (ws) {
+                log('已有连接存在', 'error');
+                return;
+            }
+
+            log('正在连接到WebSocket服务器...');
+            updateStatus('连接中...', 'bg-yellow-100');
+            
+            ws = new WebSocket('ws://localhost:8082');
+            
+            ws.onopen = function(event) {
+                log('WebSocket连接成功！', 'success');
+                updateStatus('已连接', 'bg-green-100');
+            };
+            
+            ws.onmessage = function(event) {
+                log('收到消息: ' + event.data, 'success');
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'error') {
+                        log('服务器错误: ' + data.message, 'error');
+                    }
+                } catch (e) {
+                    // 不是JSON格式的消息
+                }
+            };
+            
+            ws.onerror = function(error) {
+                log('WebSocket错误: ' + error, 'error');
+                updateStatus('连接错误', 'bg-red-100');
+            };
+            
+            ws.onclose = function(event) {
+                log(`WebSocket连接已关闭 (code: ${event.code})`);
+                updateStatus('已断开', 'bg-gray-100');
+                ws = null;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                log('主动断开连接');
+            } else {
+                log('没有活动连接', 'error');
+            }
+        }
+
+        function sendTest() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket未连接', 'error');
+                return;
+            }
+
+            const testMessage = {
+                type: 'session.update',
+                session: {
+                    modalities: ['text', 'audio'],
+                    instructions: '你是一个专门与4-6岁儿童对话的AI助手，请用温暖、鼓励的语气进行对话。'
+                }
+            };
+
+            ws.send(JSON.stringify(testMessage));
+            log('发送测试消息: ' + JSON.stringify(testMessage));
+        }
+
+        // 页面加载时自动连接
+        window.onload = function() {
+            setTimeout(connect, 1000);
+        };
+    </script>
+</body>
+</html>

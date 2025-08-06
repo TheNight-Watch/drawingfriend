@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ccc;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 API功能测试</h1>
+    
+    <!-- 1. 健康检查测试 -->
+    <div class="test-section">
+        <h2>1. 后端健康检查</h2>
+        <button onclick="testHealth()">测试健康检查</button>
+        <div id="health-status"></div>
+    </div>
+
+    <!-- 2. 图片上传和分析测试 -->
+    <div class="test-section">
+        <h2>2. 图片上传和AI分析测试</h2>
+        <p>选择一个图片文件进行上传和AI分析：</p>
+        <input type="file" id="imageFile" accept="image/*">
+        <br>
+        <button onclick="testImageUpload()">测试图片上传分析</button>
+        <div id="image-status"></div>
+        <textarea id="image-result" placeholder="分析结果将显示在这里..." readonly></textarea>
+    </div>
+
+    <!-- 3. WebSocket连接测试 -->
+    <div class="test-section">
+        <h2>3. WebSocket实时语音连接测试</h2>
+        <button onclick="testWebSocket()">测试WebSocket连接</button>
+        <button onclick="disconnectWebSocket()">断开连接</button>
+        <div id="websocket-status"></div>
+        <textarea id="websocket-log" placeholder="WebSocket日志将显示在这里..." readonly></textarea>
+    </div>
+
+    <script>
+        let ws = null;
+
+        // 显示状态消息
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '<div class="status ' + type + '">' + message + '</div>';
+        }
+
+        // 1. 测试健康检查
+        async function testHealth() {
+            showStatus('health-status', '正在测试健康检查...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:3000/health');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus('health-status', '✅ 健康检查成功: ' + JSON.stringify(data), 'success');
+                } else {
+                    showStatus('health-status', '❌ 健康检查失败: ' + response.status, 'error');
+                }
+            } catch (error) {
+                showStatus('health-status', '❌ 连接失败: ' + error.message, 'error');
+            }
+        }
+
+        // 2. 测试图片上传
+        async function testImageUpload() {
+            const fileInput = document.getElementById('imageFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('image-status', '❌ 请选择一个图片文件', 'error');
+                return;
+            }
+
+            showStatus('image-status', '正在上传和分析图片...', 'info');
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('sessionId', 'test-' + Date.now());
+
+                const response = await fetch('http://localhost:3000/api/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus('image-status', '✅ 图片上传和分析成功', 'success');
+                    document.getElementById('image-result').value = JSON.stringify(data, null, 2);
+                } else {
+                    showStatus('image-status', '❌ 上传失败: ' + (data.error || response.statusText), 'error');
+                    document.getElementById('image-result').value = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                showStatus('image-status', '❌ 上传错误: ' + error.message, 'error');
+            }
+        }
+
+        // 3. 测试WebSocket连接
+        function testWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                showStatus('websocket-status', '⚠️ WebSocket已经连接', 'info');
+                return;
+            }
+
+            showStatus('websocket-status', '正在连接WebSocket...', 'info');
+            
+            try {
+                ws = new WebSocket('ws://localhost:8082?sessionId=test&model=step-1o-audio');
+                
+                ws.onopen = function(event) {
+                    showStatus('websocket-status', '✅ WebSocket连接成功', 'success');
+                    addWebSocketLog('连接已建立');
+                    
+                    // 发送会话初始化消息（使用正确的语音）
+                    const sessionUpdate = {
+                        type: 'session.update',
+                        session: {
+                            modalities: ['text', 'audio'],
+                            instructions: '你是一个友善的AI助手，正在和儿童对话',
+                            voice: 'jingdiannvsheng'
+                        }
+                    };
+                    ws.send(JSON.stringify(sessionUpdate));
+                    addWebSocketLog('已发送会话初始化消息');
+                };
+                
+                ws.onmessage = function(event) {
+                    addWebSocketLog('收到消息: ' + event.data);
+                };
+                
+                ws.onclose = function(event) {
+                    showStatus('websocket-status', '🔌 WebSocket连接已关闭', 'info');
+                    addWebSocketLog('连接关闭: code=' + event.code + ', reason=' + event.reason);
+                };
+                
+                ws.onerror = function(error) {
+                    showStatus('websocket-status', '❌ WebSocket连接错误', 'error');
+                    addWebSocketLog('连接错误: ' + error);
+                };
+            } catch (error) {
+                showStatus('websocket-status', '❌ WebSocket创建失败: ' + error.message, 'error');
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                showStatus('websocket-status', '🔌 已主动断开WebSocket连接', 'info');
+            }
+        }
+
+        function addWebSocketLog(message) {
+            const log = document.getElementById('websocket-log');
+            const timestamp = new Date().toLocaleTimeString();
+            log.value += '[' + timestamp + '] ' + message + '\n';
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // 页面加载时自动测试健康检查
+        window.addEventListener('load', function() {
+            testHealth();
+        });
+    </script>
+</body>
+</html>
