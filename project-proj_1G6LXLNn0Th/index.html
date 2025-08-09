@@ -100,12 +100,82 @@
 <body>
     <div id="root"></div>
     
+    <!-- 按照Step-Realtime-Console的方式加载实时语音库 -->
+    <script type="module">
+      try {
+        // 预加载必需的模块
+        const realtimeModule = await import('./lib/openai-realtime-api-beta/index.js');
+        const wavtoolsModule = await import('./lib/wavtools/index.js');
+        
+        // 将类挂载到window对象上供其他脚本使用
+        window.RealtimeClient = realtimeModule.RealtimeClient;
+        window.WavRecorder = wavtoolsModule.WavRecorder;
+        window.WavStreamPlayer = wavtoolsModule.WavStreamPlayer;
+        
+        console.log('✅ 实时语音库加载成功');
+        console.log('- RealtimeClient:', !!window.RealtimeClient);
+        console.log('- WavRecorder:', !!window.WavRecorder);
+        console.log('- WavStreamPlayer:', !!window.WavStreamPlayer);
+        
+        // 触发自定义事件，通知组件库已加载
+        window.dispatchEvent(new CustomEvent('realtimeLibrariesLoaded'));
+        
+      } catch (error) {
+        console.error('❌ 实时语音库加载失败:', error);
+        // 显示错误提示
+        document.getElementById('root').innerHTML = `
+          <div style="
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+            background: #FFF8F3;
+            font-family: sans-serif;
+          ">
+            <div style="
+              background: white; 
+              padding: 2rem; 
+              border-radius: 16px; 
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+              max-width: 400px;
+              text-align: center;
+            ">
+              <h2 style="color: #dc2626; margin-bottom: 1rem;">语音库加载失败</h2>
+              <p style="color: #7F8C8D; margin-bottom: 1.5rem;">
+                实时语音功能无法加载，请检查网络连接后刷新页面。
+              </p>
+              <button 
+                onclick="window.location.reload()" 
+                style="
+                  background: #FF6B6B; 
+                  color: white; 
+                  padding: 0.75rem 1.5rem; 
+                  border: none; 
+                  border-radius: 8px; 
+                  cursor: pointer;
+                  font-weight: 600;
+                "
+              >
+                重新加载
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    </script>
+    
     <!-- Components -->
     <script type="text/babel" src="components/ErrorBoundary.js"></script>
     <script type="text/babel" src="components/Header.js"></script>
-    
+    <script type="text/babel" src="components/RealtimeVoiceChat.js"></script>
+    <script type="text/babel" src="components/ImageUpload.js"></script>
+    <script type="text/babel" src="components/ImageSearchOverlay.js"></script>
+
     <!-- Utils -->
-    <script type="text/babel" src="utils/speechService.js"></script>
+    <script type="text/babel" src="utils/fallbackSpeechService.js"></script>
+    <script type="text/babel" src="utils/cryptoHelper.js"></script>
+    <script type="text/babel" src="utils/aiService.js"></script>
+    <script type="text/babel" src="utils/imageSearchService.js"></script>
     
     <!-- Main App -->
     <script type="text/babel" src="home-app.js"></script>

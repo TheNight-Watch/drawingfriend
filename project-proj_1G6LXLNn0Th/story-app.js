@@ -194,25 +194,11 @@ function StoryApp() {
                         setIsProcessing={setIsProcessing}
                         sessionId={sessionId}
                         onReady={handleRealtimeReady}
+                        mode="story"
                       />
                     </div>
 
-                    {/* 对话历史（简化展示） */}
-                    {conversation.length > 0 && (
-                      <div className="card">
-                        <h3 className="text-lg font-semibold mb-3">💬 对话记录</h3>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {conversation.slice(-5).map((msg, index) => (
-                            <div key={index} className="p-2 bg-[var(--background-light)] rounded-lg">
-                              <div className="text-xs text-[var(--text-secondary)] mb-1">
-                                {msg.type === 'ai' ? '🤖 AI' : '👤 你'} - {new Date(msg.timestamp).toLocaleTimeString()}
-                              </div>
-                              <div className="text-sm">{msg.content}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+
                   </div>
 
                   {/* 右侧：图片展示和辅助功能 */}
@@ -247,37 +233,7 @@ function StoryApp() {
                     )}
 
 
-                    {/* 参考图片搜索 */}
-                    <div className="card">
-                      <h2 className="text-xl font-semibold mb-4 flex items-center">
-                        <span className="mr-2">🔍</span>
-                        寻找灵感
-                      </h2>
-                      
-                      <div className="mb-4">
-                        <input
-                          type="text"
-                          placeholder="输入你想搜索的内容，比如：森林、城堡、小动物..."
-                          className="w-full px-4 py-2 border border-[var(--primary-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)]"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              searchReferenceImages(e.target.value.trim());
-                            }
-                          }}
-                        />
-                      </div>
 
-                      {searchedImages.length > 0 && (
-                        <ImageGallery
-                          images={searchedImages}
-                          onImageSelect={(image) => {
-                            setSelectedImage(image);
-                            setShowImageModal(true);
-                          }}
-                          isLoading={isProcessing}
-                        />
-                      )}
-                    </div>
                   </div>
                 </div>
 

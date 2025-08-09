@@ -445,3 +445,76 @@ transcript string
     "content_index": 0,
     "transcript": "你好"
 }
+音频内容提交响应
+type: input_audio_buffer.committed
+
+当客户端提交输入音频缓冲区时返回。
+
+previous_item_id string
+会话前一个消息ID
+
+item_id string
+会话消息ID
+
+{
+    "event_id": "event_bcd",
+    "type": "input_audio_buffer.committed",
+    "previous_item_id": "msg_001",
+    "item_id": "msg_002"
+}
+音频内容删除响应
+type: input_audio_buffer.cleared
+
+当客户端使用 input_audio_buffer.clear 事件清除输入音频缓冲区时返回。
+
+ 
+{
+    "event_id": "event_1314",
+    "type": "input_audio_buffer.cleared"
+}
+推理有输出项目产生
+type: response.output_item.added
+
+在响应生成期间创建新项目时返回。
+
+output_index int
+响应中输出项的索引。
+
+item object
+输出项的对象。
+
+id string
+项目的 ID。
+
+object
+始终为realtime.item
+
+type
+item类型,目前仅支持 message
+
+status
+项目状态,可选值为 completed, incomplete,in_progress
+
+role
+该项目的 role， 仅适用于 message 项目，可选值为 user, assistant, system
+
+content
+消息的内容，适用于 message 项目。
+role=system 的消息项仅支持 input_text 内容
+role=user 的消息项支持 input_text 和 input_audio 内容
+role=assistant 角色支持文本内容的消息项。
+
+{
+    "event_id": "event_3334",
+    "type": "response.output_item.added",
+    "response_id": "resp_001",
+    "output_index": 0,
+    "item": {
+        "id": "msg_007",
+        "object": "realtime.item",
+        "type": "message",
+        "status": "in_progress",
+        "role": "assistant",
+        "content": []
+    }
+}

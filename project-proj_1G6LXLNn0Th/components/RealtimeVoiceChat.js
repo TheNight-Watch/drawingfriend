@@ -1,11 +1,23 @@
-function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProcessing, setIsProcessing, sessionId, onReady }) {
+function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProcessing, setIsProcessing, sessionId, onReady, mode = 'story' }) {
   try {
+    // 状态管理
     const [isConnected, setIsConnected] = React.useState(false);
+    const [connectionError, setConnectionError] = React.useState('');
     const [isRecording, setIsRecording] = React.useState(false);
     const [isSpeaking, setIsSpeaking] = React.useState(false);
-    const [connectionError, setConnectionError] = React.useState('');
+    const [hasInitiatedGreeting, setHasInitiatedGreeting] = React.useState(false);
     const [librariesLoaded, setLibrariesLoaded] = React.useState(false);
     const [conversationalMode, setConversationalMode] = React.useState('realtime'); // 'manual' 或 'realtime'
+    
+    // 🖼️ 图片搜索功能状态
+    const [searchImages, setSearchImages] = React.useState([]);
+    const [isSearching, setIsSearching] = React.useState(false);
+    const [searchKeyword, setSearchKeyword] = React.useState('');
+    const [aiResponseBuffer, setAiResponseBuffer] = React.useState('');
+
+    // 添加防重复搜索状态
+    const [lastProcessedItemId, setLastProcessedItemId] = React.useState('');
+    const [processedSearchKeywords, setProcessedSearchKeywords] = React.useState(new Set());
     
     const clientRef = React.useRef(null);
     const wavRecorderRef = React.useRef(null);
@@ -108,10 +120,40 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
           setConnectionError(''); // 清除错误信息
           setIsConnected(true); // 直接设置连接状态
           
-          // 如果是实时模式，自动开始录音
+          // 如果是实时模式，在问候消息发送后自动开始录音
           if (conversationalMode === 'realtime') {
-            console.log('🎤 实时模式，自动开始录音');
-            await wavRecorderRef.current.record(data => clientRef.current?.appendInputAudio(data.mono));
+            console.log('🎤 实时模式，等待问候消息发送后开始录音');
+            setTimeout(async () => {
+              if (wavRecorderRef.current && clientRef.current) {
+                try {
+                  // 检查录音器状态，如果正在录音则先停止
+                  const currentStatus = wavRecorderRef.current.getStatus();
+                  console.log('🔍 当前录音器状态:', currentStatus);
+                  
+                  if (currentStatus === 'recording') {
+                    console.log('⏸️ 录音器正在录制，先停止');
+                    await wavRecorderRef.current.pause();
+                  }
+                  
+                  // 开始新的录音
+                  await wavRecorderRef.current.record(data => clientRef.current?.appendInputAudio(data.mono));
+                  console.log('🎤 实时录音已开始');
+                } catch (error) {
+                  console.error('❌ 录制启动失败:', error.message);
+                  // 如果是已经在录制的错误，尝试先停止再重新开始
+                  if (error.message.includes('Already recording')) {
+                    try {
+                      await wavRecorderRef.current.pause();
+                      await new Promise(resolve => setTimeout(resolve, 100)); // 等待100ms
+                      await wavRecorderRef.current.record(data => clientRef.current?.appendInputAudio(data.mono));
+                      console.log('🎤 重新启动录音成功');
+                    } catch (retryError) {
+                      console.error('❌ 重新启动录音失败:', retryError.message);
+                    }
+                  }
+                }
+              }
+            }, 2000); // 给问候消息更多时间
           }
           
         } catch (error) {
@@ -150,14 +192,6 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
         setIsConnected(true);
         setConnectionError('');
         
-        // 设置初始会话配置
-        client.updateSession({
-          instructions: '你是一个友善的AI助手，专门与4-6岁的儿童对话。你正在帮助他们基于他们的绘画创作有趣的故事。请使用简单、积极的语言，提出引导性的问题来激发他们的想象力。',
-          voice: 'jingdiannvsheng',
-          turn_detection: conversationalMode === 'realtime' ? { type: 'server_vad' } : null,
-          input_audio_transcription: { model: 'whisper-1' }
-        });
-
         if (onReady) {
           onReady();
         }
@@ -167,11 +201,68 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
       client.on('realtime.event', ({ source, event }) => {
         if (source === 'server' && event.type === 'session.created') {
           console.log('✅ 会话创建成功，连接已建立');
+          
+          // 🎯 根据mode设置不同的AI系统提示词（集成蒙氏教育原则）
+          const getInstructionsByMode = (mode) => {
+            // 🌟 简化的蒙氏引导原则
+            const montessoriPrinciples = `核心原则：尊重孩子个体性，激发内在动机，关注过程而非结果。
+语言要求：开放式提问，描述性反馈，简洁回复（每次1-2句话）。
+避免：过度赞美，强加解读，长篇说教。
+`;
+
+            const baseInstructions = {
+              'theme-setting': montessoriPrinciples + `你是"故事精灵"，与4-6岁儿童对话。
+任务：了解孩子想画什么主题。
+开场：直接询问"小朋友，你有想画的主题吗？"
+如果有主题：回复"好的，那我们开始创作吧！"
+如果没有主题：引导观察周围环境，问"你在这里看到了什么？"`,
+              
+              'guidance': montessoriPrinciples + `你是"故事精灵"，帮助孩子绘画。
+当孩子说"不会画XXX"时：先问"你见过[物品]吗？感觉怎么样？"再提供图片。
+图片搜索格式："我们一起看看[物品]吧！[SEARCH:物品]"
+当孩子说"没想法"时：问"看看周围，有什么吸引你的吗？"`,
+              
+              'story': montessoriPrinciples + `你是"故事精灵"，与孩子聊他们的画作。
+开场："你画的是什么故事呢？和我分享一下吧！"
+互动方式：描述你看到的颜色和形状，问开放式问题。
+避免：不要解读画面含义，不要说"太棒了"。`
+            };
+            
+            return baseInstructions[mode] || baseInstructions['story'];
+          };
+          
+          console.log('📋 正在设置AI系统提示词，模式:', mode);
+          clientRef.current.updateSession({
+            instructions: getInstructionsByMode(mode),
+            voice: 'jingdiannvsheng',
+            turn_detection: conversationalMode === 'realtime' ? { type: 'server_vad' } : null,
+            input_audio_transcription: { model: 'whisper-1' }
+          });
+          
+          console.log('✅ 系统提示词设置完成');
           setIsConnected(true);
           setConnectionError('');
           
           if (onReady) {
             onReady();
+          }
+          
+          // 根据模式决定是否发送初始问候
+          if (mode === 'story') {
+            // 只有在故事模式下才发送基于画作的个性化问候
+            setTimeout(() => {
+              sendInitialGreeting();
+            }, 1000);
+          } else if (mode === 'theme-setting') {
+            // 主题设置模式下发送主题询问
+            setTimeout(() => {
+              sendThemeSettingGreeting();
+            }, 1000);
+          } else if (mode === 'guidance') {
+            // 引导模式下发送引导问候
+            setTimeout(() => {
+              sendGuidanceGreeting();
+            }, 1000);
           }
         }
       });
@@ -228,13 +319,168 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
         setIsRecording(false);
       });
 
-      // 播放状态事件
-      client.on('realtime.response.audio_transcript.delta', () => {
+
+
+      // 🎤 监听AI说话状态
+      client.on('response.audio.delta', (event) => {
         setIsSpeaking(true);
       });
 
-      client.on('realtime.response.audio.done', () => {
+      client.on('response.audio.done', (event) => {
         setIsSpeaking(false);
+      });
+
+      // 🎯 监听AI回复完成事件 - 从response.done中提取transcript
+      client.on('response.done', (event) => {
+        console.log('🔥🔥🔥 【DEBUG】收到response.done事件:', event);
+        
+        // 从response.output中提取transcript
+        // 数据结构: event.response.output[0].content[0].transcript
+        const output = event.response?.output;
+        console.log('🔥🔥🔥 【DEBUG】output:', output);
+        
+        if (output && output.length > 0) {
+          const messageContent = output[0]?.content;
+          console.log('🔥🔥🔥 【DEBUG】messageContent:', messageContent);
+          
+          if (messageContent && messageContent.length > 0) {
+            const audioContent = messageContent.find(content => content.type === 'audio');
+            console.log('🔥🔥🔥 【DEBUG】audioContent:', audioContent);
+            
+            if (audioContent && audioContent.transcript) {
+              const transcript = audioContent.transcript;
+              console.log('🔥🔥🔥 【DEBUG】提取到的transcript:', transcript);
+              console.log('🔥🔥🔥 【DEBUG】开始检测搜索关键词...');
+              
+              // 🔍 检测搜索触发词并处理
+              const cleanedText = detectAndTriggerSearch(transcript);
+              
+              console.log('🔥🔥🔥 【DEBUG】清理后的文本:', cleanedText);
+              
+              // 传递清理后的文本给父组件
+              if (onAIResponse) {
+                onAIResponse(cleanedText);
+              }
+            } else {
+              console.log('🔥🔥🔥 【DEBUG】没有找到audioContent或transcript');
+            }
+          } else {
+            console.log('🔥🔥🔥 【DEBUG】messageContent为空');
+          }
+        } else {
+          console.log('🔥🔥🔥 【DEBUG】output为空');
+        }
+      });
+
+      // 🚨 额外调试：监听所有realtime事件
+      client.on('realtime.event', ({ source, event }) => {
+        if (source === 'server') {
+          console.log('📡 【REALTIME事件】类型:', event.type, '事件:', event);
+          
+          // 专门监听response相关事件
+          if (event.type.startsWith('response.')) {
+            console.log('🤖 【AI响应事件】:', event.type, event);
+          }
+        }
+      });
+
+      // 🚨 额外调试：监听conversation事件  
+      client.on('conversation.updated', ({ item, delta }) => {
+        console.log('💬 【对话更新】item:', item, 'delta:', delta);
+        
+        if (item && item.formatted && item.formatted.transcript) {
+          const transcript = item.formatted.transcript;
+          console.log('🗣️ 【AI输出文本】:', transcript);
+          
+          // 🔍 检测关键词并触发搜索 - 只在item状态为completed且未处理过时触发
+          if (item.role === 'assistant' && 
+              item.status === 'completed' && 
+              transcript.includes('[SEARCH:') &&
+              item.id !== lastProcessedItemId) {
+            
+            console.log('🎯 【检测到搜索关键词】开始处理:', transcript);
+            console.log('🎯 【Item ID】:', item.id, '【上次处理的ID】:', lastProcessedItemId);
+            
+            // 更新已处理的item ID
+            setLastProcessedItemId(item.id);
+            
+            // 提取搜索关键词
+            const searchPattern = /\[SEARCH:([^\]]+)\]/g;
+            let match;
+            const foundKeywords = [];
+            
+            while ((match = searchPattern.exec(transcript)) !== null) {
+              const keyword = match[1].trim();
+              foundKeywords.push(keyword);
+            }
+            
+            // 只处理未搜索过的关键词
+            const newKeywords = foundKeywords.filter(keyword => !processedSearchKeywords.has(keyword));
+            
+            if (newKeywords.length > 0) {
+              console.log('🚀 【新关键词】:', newKeywords);
+              
+              // 标记关键词为已处理
+              const updatedKeywords = new Set(processedSearchKeywords);
+              newKeywords.forEach(keyword => updatedKeywords.add(keyword));
+              setProcessedSearchKeywords(updatedKeywords);
+              
+              // 只触发第一个新关键词的搜索
+              triggerImageSearch(newKeywords[0]);
+            } else {
+              console.log('⚠️ 【重复关键词】已处理过，跳过搜索');
+            }
+            
+            // 清理文本并传递给父组件
+            const cleanedText = transcript.replace(searchPattern, '');
+            if (onAIResponse) {
+              onAIResponse(cleanedText);
+            }
+          }
+        }
+        
+        if (delta && delta.transcript) {
+          console.log('📝 【增量文本】:', delta.transcript);
+        }
+      });
+
+      // 🚨 万能调试：监听所有可能的事件
+      console.log('🎯 开始注册所有事件监听器...');
+      
+      // 监听所有可能包含transcript的事件
+      const eventTypes = [
+        'response.created',
+        'response.done', 
+        'response.output_item.added',
+        'response.output_item.done',
+        'response.content_part.added',
+        'response.content_part.done',
+        'response.audio_transcript.delta',
+        'response.audio_transcript.done'
+      ];
+      
+      eventTypes.forEach(eventType => {
+        client.on(eventType, (event) => {
+          console.log(`🎪 【${eventType}】:`, event);
+          
+          // 查找任何可能的transcript字段
+          const searchForTranscript = (obj, path = '') => {
+            if (!obj || typeof obj !== 'object') return;
+            
+            Object.keys(obj).forEach(key => {
+              const value = obj[key];
+              const currentPath = path ? `${path}.${key}` : key;
+              
+              if (key === 'transcript' && typeof value === 'string') {
+                console.log(`🎯 【找到transcript】路径: ${currentPath}, 内容: "${value}"`);
+              } else if (typeof value === 'object') {
+                searchForTranscript(value, currentPath);
+              }
+            });
+          };
+          
+          searchForTranscript(event);
+        });
       });
     };
 
@@ -282,6 +528,175 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
         wavPlayerRef.current.interrupt();
       }
       setIsSpeaking(false);
+    };
+
+
+    // 🤖 根据模式生成不同的初始消息（恢复预设开场白）
+    const generateInitialPrompt = () => {
+      switch (mode) {
+        case 'theme-setting':
+          return '请直接询问小朋友："小朋友，你有想画的主题吗？"保持简洁回复。';
+          
+        case 'guidance':
+          return '请问候小朋友："你好，小朋友！我是故事精灵，有什么需要我帮助的吗？"';
+          
+        case 'story':
+        default:
+          const imageContent = imageAnalysis?.description || '一幅美丽的画作';
+          return `请邀请孩子分享画作。看到画作内容："${imageContent}"
+直接说："你画的是什么故事呢？和我分享一下吧！"`;
+      }
+    };
+
+    // 发送主题设置问候消息
+    const sendThemeSettingGreeting = async () => {
+      if (!clientRef.current || hasInitiatedGreeting) {
+        return;
+      }
+
+      try {
+        console.log('🎨 发送主题设置问候消息');
+        
+        clientRef.current.sendUserMessageContent([
+          {
+            type: 'input_text',
+            text: '请直接询问："小朋友，你有想画的主题吗？"'
+          }
+        ]);
+        
+        setHasInitiatedGreeting(true);
+        
+        if (onAIResponse) {
+          onAIResponse('AI正在询问绘画主题...');
+        }
+      } catch (error) {
+        console.error('❌ 发送主题设置问候失败:', error);
+      }
+    };
+
+    // 发送引导问候消息
+    const sendGuidanceGreeting = async () => {
+      if (!clientRef.current || hasInitiatedGreeting) {
+        return;
+      }
+
+      try {
+        console.log('🤝 发送引导问候消息');
+        
+        clientRef.current.sendUserMessageContent([
+          {
+            type: 'input_text',
+            text: '请问候："你好，小朋友！我是故事精灵，有什么需要我帮助的吗？"'
+          }
+        ]);
+        
+        setHasInitiatedGreeting(true);
+        
+        if (onAIResponse) {
+          onAIResponse('AI绘画助手已准备好帮助你...');
+        }
+      } catch (error) {
+        console.error('❌ 发送引导问候失败:', error);
+      }
+    };
+
+    // 发送初始问候消息
+    const sendInitialGreeting = async () => {
+      if (!clientRef.current || hasInitiatedGreeting) {
+        return;
+      }
+
+      try {
+        const initialPrompt = generateInitialPrompt();
+        console.log('🤖 AI将发送初始问候，模式:', mode);
+        console.log('📝 初始提示:', initialPrompt);
+        
+        // 发送初始消息
+        clientRef.current.sendUserMessageContent([
+          {
+            type: 'input_text',
+            text: initialPrompt
+          }
+        ]);
+        
+        setHasInitiatedGreeting(true);
+        
+        if (onAIResponse) {
+          const loadingMessage = mode === 'theme-setting' 
+            ? 'AI正在询问绘画主题...' 
+            : mode === 'guidance' 
+            ? 'AI正在准备为你提供绘画指导...'
+            : 'AI正在邀请你分享画面的故事...';
+          onAIResponse(loadingMessage);
+        }
+      } catch (error) {
+        console.error('❌ 发送初始问候失败:', error);
+      }
+    };
+
+    // 🔍 检测搜索触发词函数
+    const detectAndTriggerSearch = (fullTranscript) => {
+      console.log('🔍 检测函数输入文本:', fullTranscript);
+      
+      const searchPattern = /\[SEARCH:([^\]]+)\]/g;
+      let match;
+      let foundKeywords = [];
+      
+      console.log('🔍 开始正则匹配...');
+      while ((match = searchPattern.exec(fullTranscript)) !== null) {
+        const keyword = match[1].trim();
+        foundKeywords.push(keyword);
+        console.log('✅ 检测到搜索触发词:', keyword);
+      }
+      
+      console.log('🔍 匹配结果:', foundKeywords);
+      
+      // 触发搜索
+      if (foundKeywords.length > 0) {
+        console.log('🚀 准备触发图片搜索:', foundKeywords[0]);
+        triggerImageSearch(foundKeywords[0]);
+      } else {
+        console.log('❌ 未找到搜索触发词');
+      }
+      
+      // 移除搜索标记，返回清理后的文本
+      const cleanedText = fullTranscript.replace(searchPattern, '');
+      console.log('🧹 文本清理完成:', cleanedText);
+      return cleanedText;
+    };
+
+    // 🖼️ 图片搜索函数
+    const triggerImageSearch = async (keyword) => {
+      setIsSearching(true);
+      setSearchKeyword(keyword);
+      
+      try {
+        console.log('🖼️ 开始搜索图片:', keyword);
+        
+        const response = await fetch(
+          `http://localhost:3000/api/search-images?keyword=${encodeURIComponent(keyword)}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.images) {
+          setSearchImages(data.images);
+          console.log('✅ 图片搜索完成，找到', data.images.length, '张图片');
+        } else {
+          console.warn('⚠️ 搜索结果为空');
+          setSearchImages([]);
+        }
+        
+      } catch (error) {
+        console.error('❌ 图片搜索失败:', error);
+        setSearchImages([]);
+      } finally {
+        setIsSearching(false);
+      }
     };
 
     // 切换对话模式
@@ -447,9 +862,64 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
                 </div>
               )}
 
-              {imageAnalysis && (
+              {/* 隐藏详细的画作分析文本显示 */}
+              {/* {imageAnalysis && (
                 <div className="text-xs text-[var(--text-secondary)] bg-[var(--background-light)] p-3 rounded">
                   💡 基于你的画作：{imageAnalysis.description || '正在分析中...'}
+                </div>
+              )} */}
+
+              {/* 🖼️ 图片搜索结果展示 */}
+              {(searchImages.length > 0 || isSearching) && (
+                <div className="bg-white p-4 rounded-lg border-2 border-[var(--primary-color)] shadow-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-[var(--primary-color)]">
+                      📸 参考图片 {searchKeyword && `- ${searchKeyword}`}
+                    </h3>
+                    {searchImages.length > 0 && (
+                      <button 
+                        onClick={() => {
+                          setSearchImages([]);
+                          setSearchKeyword('');
+                        }}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        ✕ 关闭
+                      </button>
+                    )}
+                  </div>
+                  
+                  {isSearching ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-color)] mx-auto mb-2"></div>
+                      <p className="text-sm text-[var(--text-secondary)]">正在搜索图片...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {searchImages.map((image, index) => (
+                        <div key={image.id} className="relative group">
+                          <img 
+                            src={image.url} 
+                            alt={image.alt}
+                            className="w-full h-24 object-cover rounded-lg border hover:border-[var(--primary-color)] transition-all duration-200 cursor-pointer"
+                            onClick={() => {
+                              // 可以添加图片点击查看大图功能
+                              window.open(image.photographer_url, '_blank');
+                            }}
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                            📷 {image.photographer}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {searchImages.length > 0 && (
+                    <div className="mt-3 text-xs text-[var(--text-secondary)] text-center">
+                      图片来源：Unsplash.com，点击图片查看摄影师主页
+                    </div>
+                  )}
                 </div>
               )}
             </>
