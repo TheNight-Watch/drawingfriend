@@ -1,19 +1,32 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { serveStatic } from 'hono/bun';
 import { analyzeImage } from './vision';
 
 import { join } from 'path';
 
 const app = new Hono();
 
-// 启用CORS
+// 启用CORS - 生产环境支持Railway域名
 app.use('*', cors({
-  origin: ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:8080', 'http://127.0.0.1:8080'],
+  origin: ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:8080', 'http://127.0.0.1:8080', 'https://*.railway.app'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// 静态文件服务
+// 健康检查端点（Railway需要）
+app.get('/health', (c) => {
+  return c.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    services: {
+      websocket: 'running',
+      api: 'running'
+    }
+  });
+});
+
+// 静态文件服务 - uploads目录
 app.get('/uploads/*', async (c) => {
   const filePath = c.req.path.replace('/uploads/', '');
   const file = Bun.file(join(process.cwd(), 'uploads', filePath));
@@ -164,17 +177,19 @@ app.get('/api/search-images', async (c) => {
   }
 });
 
-// 健康检查
-app.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+
+
+// 在API路由之后添加前端静态文件服务（作为fallback）
+app.use('/*', serveStatic({ 
+  root: '../project-proj_1G6LXLNn0Th'
+}));
 
 export function startAPIServer() {
   const server = Bun.serve({
-    port: 3000,
+    port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
     fetch: app.fetch,
   });
 
-  console.log('🚀 REST API服务器启动在端口 3000');
+  console.log(`✅ REST API服务器启动在端口 ${process.env.PORT || 3000}`);
   return server;
 } 

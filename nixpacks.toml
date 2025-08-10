@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ['bun']
+
+[phases.install]
+cmds = [
+  'cd backend && bun install'
+]
+
+[phases.build]
+cmds = [
+  'echo "Building backend services..."'
+]
+
+[start]
+cmd = 'cd backend && bun run start' 
