@@ -10,6 +10,7 @@ function HomeApp() {
     const [isSearching, setIsSearching] = React.useState(false);
     const [searchKeyword, setSearchKeyword] = React.useState('');
     const [showImageSearchOverlay, setShowImageSearchOverlay] = React.useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
 
     // 生成会话ID
     React.useEffect(() => {
@@ -111,6 +112,7 @@ function HomeApp() {
       setIsSearching(true);
       setSearchKeyword(keyword);
       setShowImageSearchOverlay(true);
+      setCurrentImageIndex(0); // 重置轮播图索引
       
       try {
         console.log('🖼️ 开始搜索图片:', keyword);
@@ -147,6 +149,7 @@ function HomeApp() {
       setSearchImages([]);
       setSearchKeyword('');
       setIsSearching(false);
+      setCurrentImageIndex(0);
     };
 
     // 处理实时语音就绪状态
@@ -346,28 +349,98 @@ function HomeApp() {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary-color)] mx-auto mb-4"></div>
                     <p className="text-lg text-[var(--text-secondary)]">正在搜索图片...</p>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-                    {searchImages.map((image, index) => (
-                      <div key={image.id || index} className="relative group">
-                        <img 
-                          src={image.url} 
-                          alt={image.alt || `${searchKeyword}参考图片`}
-                          className="w-full h-32 object-cover rounded-lg border-2 border-transparent hover:border-[var(--primary-color)] transition-all duration-200 cursor-pointer"
-                          onClick={() => {
-                            // 点击图片可以在新窗口打开
-                            if (image.photographer_url) {
-                              window.open(image.photographer_url, '_blank');
-                            }
-                          }}
-                        />
-                        {image.photographer && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white text-xs p-2 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                            📷 {image.photographer}
-                          </div>
-                        )}
+                ) : searchImages.length > 0 && (
+                  <div className="relative">
+                    {/* 轮播图主体 */}
+                    <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                      <img 
+                        src={searchImages[currentImageIndex]?.url} 
+                        alt={searchImages[currentImageIndex]?.alt || `${searchKeyword}参考图片`}
+                        className="w-full h-96 object-cover cursor-pointer transition-opacity duration-300"
+                        onClick={() => {
+                          // 点击图片可以在新窗口打开
+                          if (searchImages[currentImageIndex]?.photographer_url) {
+                            window.open(searchImages[currentImageIndex].photographer_url, '_blank');
+                          }
+                        }}
+                      />
+                      
+                      {/* 摄影师信息覆盖层 */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                        <p className="text-white text-sm">
+                          📷 摄影师：{searchImages[currentImageIndex]?.photographer}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+                    
+                    {/* 左右切换按钮 */}
+                    {searchImages.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentImageIndex(prev => 
+                            prev === 0 ? searchImages.length - 1 : prev - 1
+                          )}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110 text-xl font-bold"
+                        >
+                          ←
+                        </button>
+                        <button
+                          onClick={() => setCurrentImageIndex(prev => 
+                            prev === searchImages.length - 1 ? 0 : prev + 1
+                          )}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110 text-xl font-bold"
+                        >
+                          →
+                        </button>
+                      </>
+                    )}
+                    
+                    {/* 底部指示器和缩略图 */}
+                    {searchImages.length > 1 && (
+                      <div className="mt-6">
+                        <div className="flex justify-center gap-2 mb-4">
+                          {searchImages.map((_, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setCurrentImageIndex(index)}
+                              className={`w-4 h-4 rounded-full transition-all duration-200 ${
+                                currentImageIndex === index 
+                                  ? 'bg-[var(--primary-color)]' 
+                                  : 'bg-gray-300 hover:bg-gray-400'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        
+                        {/* 缩略图导航 */}
+                        <div className="flex justify-center gap-2 overflow-x-auto pb-2">
+                          {searchImages.map((image, index) => (
+                            <button
+                              key={image.id || index}
+                              onClick={() => setCurrentImageIndex(index)}
+                              className={`flex-shrink-0 w-16 h-16 rounded border-2 overflow-hidden transition-all duration-200 ${
+                                currentImageIndex === index 
+                                  ? 'border-[var(--primary-color)] scale-110' 
+                                  : 'border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              <img 
+                                src={image.url}
+                                alt={image.alt || `${searchKeyword}参考图片`}
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        
+                        {/* 计数器 */}
+                        <div className="text-center mt-4">
+                          <span className="text-lg text-[var(--text-primary)] font-medium">
+                            {currentImageIndex + 1} / {searchImages.length}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 

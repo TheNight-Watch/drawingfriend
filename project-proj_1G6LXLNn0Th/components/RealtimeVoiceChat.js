@@ -14,6 +14,7 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
     const [isSearching, setIsSearching] = React.useState(false);
     const [searchKeyword, setSearchKeyword] = React.useState('');
     const [aiResponseBuffer, setAiResponseBuffer] = React.useState('');
+    const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
 
     // 添加防重复搜索状态
     const [lastProcessedItemId, setLastProcessedItemId] = React.useState('');
@@ -211,21 +212,150 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
 `;
 
             const baseInstructions = {
-              'theme-setting': montessoriPrinciples + `你是"故事精灵"，与4-6岁儿童对话。
-任务：了解孩子想画什么主题。
-开场：直接询问"小朋友，你有想画的主题吗？"
-如果有主题：回复"好的，那我们开始创作吧！"
-如果没有主题：引导观察周围环境，问"你在这里看到了什么？"`,
+              'theme-setting': montessoriPrinciples + `你是一个画画玩伴，连接建立后立即开始按以下步骤执行：
+
+【第一步：自我介绍】（连接建立后立即执行）
+- 说："嗨！我是你的画画玩伴！希望能陪你度过一个比平常更快乐的画画时光！"
+- 完成后进入第二步
+
+【第二步：了解活动】
+在自我介绍后，你需要遵循下面的步骤自然过渡到故事绘画，主要需要随机应变，不用很死板：
+先了解体验：你需要了解孩子的经历背景。背景是孩子们中午刚进行完展厅寻宝活动，你可以说"我听说中午有一个展厅寻宝的活动，那个是什么呀？听起来很有趣呢！"
+让孩子描述：你需要引导孩子描述他觉得最有趣的事情
+发现兴趣点：你需要巧妙的鼓励孩子把他想到的东西画出来，比如"哎呀，我突然想到，我们可以把这些画下来诶！"
+
+
+【执行规则】
+- 连接建立后立即开始第一步，不等待用户输入
+
+【应急情况】
+如果孩子直接说要画画：立即说"太好了！那我们开始画一个你想画的故事吧！"
+如果孩子不想聊天：说"没关系，你可以先在白纸上自由的涂鸦，说不定突然就有灵感来了呢，我会一直在旁边陪着你！"
+
+现在立即开始第一步。`,
               
-              'guidance': montessoriPrinciples + `你是"故事精灵"，帮助孩子绘画。
-当孩子说"不会画XXX"时：先问"你见过[物品]吗？感觉怎么样？"再提供图片。
-图片搜索格式："我们一起看看[物品]吧！[SEARCH:物品]"
-当孩子说"没想法"时：问"看看周围，有什么吸引你的吗？"`,
+              'guidance': montessoriPrinciples + `你是一个画画玩伴，专门帮助遇到困难的小朋友。连接建立后立即主动询问孩子需要什么帮助。
+
+【开场方式】（连接建立后立即执行）
+说："你好呀！我是你的画画玩伴，有什么画不出来的地方吗？我来帮帮你！"
+
+【核心任务】智能识别孩子遇到的困难类型并给出相应帮助
+
+【困难类型识别】
+
+🎨 **情况1：没有思路型**
+识别信号：
+- "我不知道画什么"
+- "没有想法"
+- "想不出来"
+- "不知道画啥"
+
+应对策略：
+1. 温暖鼓励："没关系呀，我们一起想想！"
+2. 启发想象："你今天做了什么好玩的事情？"或"你最喜欢什么呀？"
+3. 具体引导："那个听起来很有意思！我们可以把它画下来吗？"
+4. 降低门槛："或者我们先随便画几笔，看看能变成什么？"
+
+🖌️ **情况2：技能困难型**  
+识别信号：
+- "我不会画XXX"
+- "XXX太难了"
+- "画不出来XXX"
+- "不知道XXX怎么画"
+
+应对策略：
+1. 共情理解："画[物品]确实有点挑战呢！"
+2. 观察引导："你平时见过[物品]吗？它是什么样子的？"
+3. 视觉辅助：**必须**使用搜索格式："我们一起看看[物品]吧！[SEARCH:物品]"
+4. 降低难度："我们可以先画个简单的版本！"
+
+【语言风格要求】
+- 多用问句激发思考，少用陈述句
+- 保持好奇和惊喜的语调
+- 每次回复1-2句话，简洁有力
+- 根据孩子的能量状态调整互动方式
+
+【实例模板】
+
+没思路时：
+"哎呀，想不出来画什么是很正常的呀！那你今天有什么开心的事情吗？"
+
+画不出来时：
+"画小狗确实有点难呢！你见过小狗吗？它的耳朵是什么样子的？我们一起看看小狗吧！[SEARCH:小狗]"
+
+【注意事项】
+- 不要直接告诉孩子怎么画，而是引导他们观察和思考
+- 搜索格式必须准确：[SEARCH:具体物品名称]
+- 保持耐心，允许孩子慢慢来
+- 每个孩子都不一样，灵活调整方式`,
               
-              'story': montessoriPrinciples + `你是"故事精灵"，与孩子聊他们的画作。
-开场："你画的是什么故事呢？和我分享一下吧！"
-互动方式：描述你看到的颜色和形状，问开放式问题。
-避免：不要解读画面含义，不要说"太棒了"。`
+              'story': montessoriPrinciples + `你是一个故事引导玩伴，帮助孩子将画作发展成完整的故事。连接建立后立即开始引导对话。
+
+【最终目标】引导孩子思考，将零散思维串联成完整、有逻辑的故事，并表达出来。
+
+${imageAnalysis ? `【图片分析结果】
+AI分析：${imageAnalysis.description || '一幅有趣的作品'}
+
+` : ''}【开场方式】（连接建立后立即执行）
+基于图片分析结果，温暖开场：
+"哇，你画的真有意思！能跟我说说你画的是什么故事吗？"
+
+【故事构建步骤】
+
+🎯 **第一阶段：了解基础**
+- 让孩子自由描述画面："你能告诉我画里发生了什么吗？"
+- 倾听并确认关键元素："我看到了[从图片分析中提取的元素]，是这样吗？"
+
+🌟 **第二阶段：发散细节**
+围绕画面内容提出开放性问题：
+- 环境背景："这个故事发生在什么地方呀？"
+- 主角动机："[主角]想要做什么呢？"
+- 其他角色："还有其他人物在这个故事里吗？"
+- 情感氛围："[主角]现在的心情怎么样？"
+
+🎨 **第三阶段：完善故事**
+引导逻辑连接：
+- 起因："这个故事是怎么开始的呢？"
+- 过程："然后发生了什么？"
+- 结果："最后会怎么样呢？"
+- 意义："这个故事想告诉我们什么？"
+
+【引导策略】
+
+基于图片分析结果的个性化引导：
+- 如果画面有动物：询问动物的性格、想做什么
+- 如果画面有人物：询问人物关系、在做什么
+- 如果画面有场景：询问时间、季节、氛围
+- 如果画面有物品：询问物品的作用、来历
+
+【语言技巧】
+
+1. **描述性反馈**：
+"我注意到你画的[具体元素]，看起来很[描述感受]"
+
+2. **开放式提问**：
+"你觉得[角色]为什么会[行为]？"
+"如果你是[角色]，你会怎么办？"
+
+3. **故事连接**：
+"这听起来很有意思！然后呢？"
+"哦，所以[角色]是因为[原因]才[行为]的？"
+
+4. **想象激发**：
+"你觉得在[场景]里还会有什么？"
+"[角色]的朋友可能是谁呢？"
+
+【注意事项】
+- 每次只问一个问题，等孩子回答后再继续
+- 基于孩子的回答调整问题方向
+- 不要强加自己的理解，让孩子主导故事内容
+- 经常总结和确认："所以这个故事是..."
+- 保持好奇和惊喜的语调，鼓励孩子的创意
+
+【完成标志】
+当孩子能完整讲述包含背景、角色、情节、结果的故事时，给予肯定：
+
+现在根据图片分析结果开始引导对话。`,
             };
             
             return baseInstructions[mode] || baseInstructions['story'];
@@ -235,8 +365,7 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
           clientRef.current.updateSession({
             instructions: getInstructionsByMode(mode),
             voice: 'jingdiannvsheng',
-            turn_detection: conversationalMode === 'realtime' ? { type: 'server_vad' } : null,
-            input_audio_transcription: { model: 'whisper-1' }
+            turn_detection: conversationalMode === 'realtime' ? { type: 'server_vad' } : null
           });
           
           console.log('✅ 系统提示词设置完成');
@@ -247,23 +376,17 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
             onReady();
           }
           
-          // 根据模式决定是否发送初始问候
-          if (mode === 'story') {
-            // 只有在故事模式下才发送基于画作的个性化问候
-            setTimeout(() => {
-              sendInitialGreeting();
-            }, 1000);
-          } else if (mode === 'theme-setting') {
-            // 主题设置模式下发送主题询问
-            setTimeout(() => {
-              sendThemeSettingGreeting();
-            }, 1000);
-          } else if (mode === 'guidance') {
-            // 引导模式下发送引导问候
-            setTimeout(() => {
-              sendGuidanceGreeting();
-            }, 1000);
-          }
+          // 发送一个简单的触发消息，让AI开始按照系统指令执行
+          // 不包含任何具体指令，纯粹作为启动信号
+          setTimeout(() => {
+            if (clientRef.current) {
+              clientRef.current.sendUserMessageContent([{
+                type: 'input_text',
+                text: '开始'
+              }]);
+              console.log('✅ 已发送启动信号，AI将按照系统指令自主执行');
+            }
+          }, 500);
         }
       });
 
@@ -289,117 +412,36 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
         setIsSpeaking(false);
       });
 
-      // 对话事件
+      // 对话事件 - 统一处理所有conversation.updated事件
       client.on('conversation.updated', ({ item, delta }) => {
-        if (delta?.transcript) {
+        console.log('💬 【对话更新】item:', item, 'delta:', delta);
+        
+        // 处理用户输入的转录
+        if (delta?.transcript && item?.role === 'user') {
+          console.log('👤 【用户输入转录】:', delta.transcript);
           if (onTranscript) {
             onTranscript(delta.transcript);
           }
         }
         
+        // 处理AI输出的增量转录（仅用于调试）
+        if (delta?.transcript && item?.role === 'assistant') {
+          console.log('🤖 【AI输出转录】:', delta.transcript);
+        }
+        
+        // 处理音频数据
         if (delta?.audio) {
           wavPlayerRef.current.add16BitPCM(delta.audio, item.id);
         }
         
-        if (item.status === 'completed' && item.formatted?.text) {
-          if (onAIResponse) {
-            onAIResponse(item.formatted.text);
-          }
-        }
-      });
-
-      // 录制状态事件
-      client.on('realtime.input_audio_buffer.speech_started', () => {
-        console.log('🎤 开始录制语音');
-        setIsRecording(true);
-      });
-
-      client.on('realtime.input_audio_buffer.speech_stopped', () => {
-        console.log('🎤 停止录制语音');
-        setIsRecording(false);
-      });
-
-
-
-      // 🎤 监听AI说话状态
-      client.on('response.audio.delta', (event) => {
-        setIsSpeaking(true);
-      });
-
-      client.on('response.audio.done', (event) => {
-        setIsSpeaking(false);
-      });
-
-      // 🎯 监听AI回复完成事件 - 从response.done中提取transcript
-      client.on('response.done', (event) => {
-        console.log('🔥🔥🔥 【DEBUG】收到response.done事件:', event);
-        
-        // 从response.output中提取transcript
-        // 数据结构: event.response.output[0].content[0].transcript
-        const output = event.response?.output;
-        console.log('🔥🔥🔥 【DEBUG】output:', output);
-        
-        if (output && output.length > 0) {
-          const messageContent = output[0]?.content;
-          console.log('🔥🔥🔥 【DEBUG】messageContent:', messageContent);
-          
-          if (messageContent && messageContent.length > 0) {
-            const audioContent = messageContent.find(content => content.type === 'audio');
-            console.log('🔥🔥🔥 【DEBUG】audioContent:', audioContent);
-            
-            if (audioContent && audioContent.transcript) {
-              const transcript = audioContent.transcript;
-              console.log('🔥🔥🔥 【DEBUG】提取到的transcript:', transcript);
-              console.log('🔥🔥🔥 【DEBUG】开始检测搜索关键词...');
-              
-              // 🔍 检测搜索触发词并处理
-              const cleanedText = detectAndTriggerSearch(transcript);
-              
-              console.log('🔥🔥🔥 【DEBUG】清理后的文本:', cleanedText);
-              
-              // 传递清理后的文本给父组件
-              if (onAIResponse) {
-                onAIResponse(cleanedText);
-              }
-            } else {
-              console.log('🔥🔥🔥 【DEBUG】没有找到audioContent或transcript');
-            }
-          } else {
-            console.log('🔥🔥🔥 【DEBUG】messageContent为空');
-          }
-        } else {
-          console.log('🔥🔥🔥 【DEBUG】output为空');
-        }
-      });
-
-      // 🚨 额外调试：监听所有realtime事件
-      client.on('realtime.event', ({ source, event }) => {
-        if (source === 'server') {
-          console.log('📡 【REALTIME事件】类型:', event.type, '事件:', event);
-          
-          // 专门监听response相关事件
-          if (event.type.startsWith('response.')) {
-            console.log('🤖 【AI响应事件】:', event.type, event);
-          }
-        }
-      });
-
-      // 🚨 额外调试：监听conversation事件  
-      client.on('conversation.updated', ({ item, delta }) => {
-        console.log('💬 【对话更新】item:', item, 'delta:', delta);
-        
-        if (item && item.formatted && item.formatted.transcript) {
+        // 处理AI完成的回复并检测搜索关键词
+        if (item?.role === 'assistant' && item.status === 'completed' && item.formatted?.transcript) {
           const transcript = item.formatted.transcript;
-          console.log('🗣️ 【AI输出文本】:', transcript);
+          console.log('🗣️ 【AI完整输出】:', transcript);
           
-          // 🔍 检测关键词并触发搜索 - 只在item状态为completed且未处理过时触发
-          if (item.role === 'assistant' && 
-              item.status === 'completed' && 
-              transcript.includes('[SEARCH:') &&
-              item.id !== lastProcessedItemId) {
-            
+          // 🔍 检测关键词并触发搜索 - 只在未处理过时触发
+          if (transcript.includes('[SEARCH:') && item.id !== lastProcessedItemId) {
             console.log('🎯 【检测到搜索关键词】开始处理:', transcript);
-            console.log('🎯 【Item ID】:', item.id, '【上次处理的ID】:', lastProcessedItemId);
             
             // 更新已处理的item ID
             setLastProcessedItemId(item.id);
@@ -427,8 +469,6 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
               
               // 只触发第一个新关键词的搜索
               triggerImageSearch(newKeywords[0]);
-            } else {
-              console.log('⚠️ 【重复关键词】已处理过，跳过搜索');
             }
             
             // 清理文本并传递给父组件
@@ -436,11 +476,46 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
             if (onAIResponse) {
               onAIResponse(cleanedText);
             }
+          } else if (item.formatted?.text) {
+            // 普通AI回复
+            if (onAIResponse) {
+              onAIResponse(item.formatted.text);
+            }
           }
         }
-        
-        if (delta && delta.transcript) {
-          console.log('📝 【增量文本】:', delta.transcript);
+      });
+
+      // 录制状态事件
+      client.on('realtime.input_audio_buffer.speech_started', () => {
+        console.log('🎤 开始录制语音');
+        setIsRecording(true);
+      });
+
+      client.on('realtime.input_audio_buffer.speech_stopped', () => {
+        console.log('🎤 停止录制语音');
+        setIsRecording(false);
+      });
+
+
+
+      // 🎤 监听AI说话状态
+      client.on('response.audio.delta', (event) => {
+        setIsSpeaking(true);
+      });
+
+      client.on('response.audio.done', (event) => {
+        setIsSpeaking(false);
+      });
+
+      // 🚨 额外调试：监听所有realtime事件
+      client.on('realtime.event', ({ source, event }) => {
+        if (source === 'server') {
+          console.log('📡 【REALTIME事件】类型:', event.type, '事件:', event);
+          
+          // 专门监听response相关事件
+          if (event.type.startsWith('response.')) {
+            console.log('🤖 【AI响应事件】:', event.type, event);
+          }
         }
       });
 
@@ -531,144 +606,11 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
     };
 
 
-    // 🤖 根据模式生成不同的初始消息（恢复预设开场白）
-    const generateInitialPrompt = () => {
-      switch (mode) {
-        case 'theme-setting':
-          return '请直接询问小朋友："小朋友，你有想画的主题吗？"保持简洁回复。';
-          
-        case 'guidance':
-          return '请问候小朋友："你好，小朋友！我是故事精灵，有什么需要我帮助的吗？"';
-          
-        case 'story':
-        default:
-          const imageContent = imageAnalysis?.description || '一幅美丽的画作';
-          return `请邀请孩子分享画作。看到画作内容："${imageContent}"
-直接说："你画的是什么故事呢？和我分享一下吧！"`;
-      }
-    };
-
-    // 发送主题设置问候消息
-    const sendThemeSettingGreeting = async () => {
-      if (!clientRef.current || hasInitiatedGreeting) {
-        return;
-      }
-
-      try {
-        console.log('🎨 发送主题设置问候消息');
-        
-        clientRef.current.sendUserMessageContent([
-          {
-            type: 'input_text',
-            text: '请直接询问："小朋友，你有想画的主题吗？"'
-          }
-        ]);
-        
-        setHasInitiatedGreeting(true);
-        
-        if (onAIResponse) {
-          onAIResponse('AI正在询问绘画主题...');
-        }
-      } catch (error) {
-        console.error('❌ 发送主题设置问候失败:', error);
-      }
-    };
-
-    // 发送引导问候消息
-    const sendGuidanceGreeting = async () => {
-      if (!clientRef.current || hasInitiatedGreeting) {
-        return;
-      }
-
-      try {
-        console.log('🤝 发送引导问候消息');
-        
-        clientRef.current.sendUserMessageContent([
-          {
-            type: 'input_text',
-            text: '请问候："你好，小朋友！我是故事精灵，有什么需要我帮助的吗？"'
-          }
-        ]);
-        
-        setHasInitiatedGreeting(true);
-        
-        if (onAIResponse) {
-          onAIResponse('AI绘画助手已准备好帮助你...');
-        }
-      } catch (error) {
-        console.error('❌ 发送引导问候失败:', error);
-      }
-    };
-
-    // 发送初始问候消息
-    const sendInitialGreeting = async () => {
-      if (!clientRef.current || hasInitiatedGreeting) {
-        return;
-      }
-
-      try {
-        const initialPrompt = generateInitialPrompt();
-        console.log('🤖 AI将发送初始问候，模式:', mode);
-        console.log('📝 初始提示:', initialPrompt);
-        
-        // 发送初始消息
-        clientRef.current.sendUserMessageContent([
-          {
-            type: 'input_text',
-            text: initialPrompt
-          }
-        ]);
-        
-        setHasInitiatedGreeting(true);
-        
-        if (onAIResponse) {
-          const loadingMessage = mode === 'theme-setting' 
-            ? 'AI正在询问绘画主题...' 
-            : mode === 'guidance' 
-            ? 'AI正在准备为你提供绘画指导...'
-            : 'AI正在邀请你分享画面的故事...';
-          onAIResponse(loadingMessage);
-        }
-      } catch (error) {
-        console.error('❌ 发送初始问候失败:', error);
-      }
-    };
-
-    // 🔍 检测搜索触发词函数
-    const detectAndTriggerSearch = (fullTranscript) => {
-      console.log('🔍 检测函数输入文本:', fullTranscript);
-      
-      const searchPattern = /\[SEARCH:([^\]]+)\]/g;
-      let match;
-      let foundKeywords = [];
-      
-      console.log('🔍 开始正则匹配...');
-      while ((match = searchPattern.exec(fullTranscript)) !== null) {
-        const keyword = match[1].trim();
-        foundKeywords.push(keyword);
-        console.log('✅ 检测到搜索触发词:', keyword);
-      }
-      
-      console.log('🔍 匹配结果:', foundKeywords);
-      
-      // 触发搜索
-      if (foundKeywords.length > 0) {
-        console.log('🚀 准备触发图片搜索:', foundKeywords[0]);
-        triggerImageSearch(foundKeywords[0]);
-      } else {
-        console.log('❌ 未找到搜索触发词');
-      }
-      
-      // 移除搜索标记，返回清理后的文本
-      const cleanedText = fullTranscript.replace(searchPattern, '');
-      console.log('🧹 文本清理完成:', cleanedText);
-      return cleanedText;
-    };
-
     // 🖼️ 图片搜索函数
     const triggerImageSearch = async (keyword) => {
       setIsSearching(true);
       setSearchKeyword(keyword);
+      setCurrentImageIndex(0); // 重置轮播图索引
       
       try {
         console.log('🖼️ 开始搜索图片:', keyword);
@@ -869,10 +811,10 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
                 </div>
               )} */}
 
-              {/* 🖼️ 图片搜索结果展示 */}
+              {/* 🖼️ 图片搜索结果展示 - 轮播图形式 */}
               {(searchImages.length > 0 || isSearching) && (
                 <div className="bg-white p-4 rounded-lg border-2 border-[var(--primary-color)] shadow-lg">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-[var(--primary-color)]">
                       📸 参考图片 {searchKeyword && `- ${searchKeyword}`}
                     </h3>
@@ -881,6 +823,7 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
                         onClick={() => {
                           setSearchImages([]);
                           setSearchKeyword('');
+                          setCurrentImageIndex(0);
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700"
                       >
@@ -890,33 +833,104 @@ function RealtimeVoiceChat({ onTranscript, onAIResponse, imageAnalysis, isProces
                   </div>
                   
                   {isSearching ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-color)] mx-auto mb-2"></div>
-                      <p className="text-sm text-[var(--text-secondary)]">正在搜索图片...</p>
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary-color)] mx-auto mb-4"></div>
+                      <p className="text-lg text-[var(--text-secondary)]">正在搜索图片...</p>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {searchImages.map((image, index) => (
-                        <div key={image.id} className="relative group">
-                          <img 
-                            src={image.url} 
-                            alt={image.alt}
-                            className="w-full h-24 object-cover rounded-lg border hover:border-[var(--primary-color)] transition-all duration-200 cursor-pointer"
-                            onClick={() => {
-                              // 可以添加图片点击查看大图功能
-                              window.open(image.photographer_url, '_blank');
-                            }}
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                            📷 {image.photographer}
+                  ) : searchImages.length > 0 && (
+                    <div className="relative">
+                      {/* 轮播图主体 */}
+                      <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                        <img 
+                          src={searchImages[currentImageIndex]?.url} 
+                          alt={searchImages[currentImageIndex]?.alt}
+                          className="w-full h-80 object-cover cursor-pointer transition-opacity duration-300"
+                          onClick={() => {
+                            window.open(searchImages[currentImageIndex]?.photographer_url, '_blank');
+                          }}
+                        />
+                        
+                        {/* 摄影师信息覆盖层 */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                          <p className="text-white text-sm">
+                            📷 摄影师：{searchImages[currentImageIndex]?.photographer}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* 左右切换按钮 */}
+                      {searchImages.length > 1 && (
+                        <>
+                          <button
+                            onClick={() => setCurrentImageIndex(prev => 
+                              prev === 0 ? searchImages.length - 1 : prev - 1
+                            )}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+                          >
+                            ←
+                          </button>
+                          <button
+                            onClick={() => setCurrentImageIndex(prev => 
+                              prev === searchImages.length - 1 ? 0 : prev + 1
+                            )}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+                          >
+                            →
+                          </button>
+                        </>
+                      )}
+                      
+                      {/* 底部指示器和缩略图 */}
+                      {searchImages.length > 1 && (
+                        <div className="mt-4">
+                          <div className="flex justify-center gap-2 mb-2">
+                            {searchImages.map((_, index) => (
+                              <button
+                                key={index}
+                                onClick={() => setCurrentImageIndex(index)}
+                                className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                                  currentImageIndex === index 
+                                    ? 'bg-[var(--primary-color)]' 
+                                    : 'bg-gray-300 hover:bg-gray-400'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          
+                          {/* 缩略图导航 */}
+                          <div className="flex justify-center gap-1 overflow-x-auto pb-2">
+                            {searchImages.map((image, index) => (
+                              <button
+                                key={image.id}
+                                onClick={() => setCurrentImageIndex(index)}
+                                className={`flex-shrink-0 w-12 h-12 rounded border-2 overflow-hidden transition-all duration-200 ${
+                                  currentImageIndex === index 
+                                    ? 'border-[var(--primary-color)] scale-110' 
+                                    : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                              >
+                                <img 
+                                  src={image.url}
+                                  alt={image.alt}
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                          
+                          {/* 计数器 */}
+                          <div className="text-center mt-2">
+                            <span className="text-sm text-[var(--text-secondary)]">
+                              {currentImageIndex + 1} / {searchImages.length}
+                            </span>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                   
                   {searchImages.length > 0 && (
-                    <div className="mt-3 text-xs text-[var(--text-secondary)] text-center">
+                    <div className="mt-4 text-xs text-[var(--text-secondary)] text-center">
                       图片来源：Unsplash.com，点击图片查看摄影师主页
                     </div>
                   )}
