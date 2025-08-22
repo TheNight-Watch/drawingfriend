@@ -1,0 +1,10 @@
+{
+  "voiceId": "voice-tone-Jcy4dd5OHQ",
+  "createdAt": "2025-08-10T08:50:34.000Z",
+  "model": "step-tts-mini",
+  "originalText": "我准备好了！我准备好了！我是海绵宝宝！",
+  "sampleText": "你好呀！我是海绵宝宝！",
+  "duplicated": false,
+  "fileId": "file-Jcy4dd5OHQ",
+  "usage": "已应用到RealtimeVoiceChat组件的voice配置中"
+}

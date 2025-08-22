@@ -84,7 +84,7 @@ function ImageSearchOverlay({ images, keyword, isSearching, onClose, isVisible }
         <div className="border-t border-gray-200 p-4 bg-gray-50">
           <div className="flex justify-between items-center">
             <div className="text-xs text-[var(--text-secondary)]">
-              图片来源：Unsplash.com
+              图片来源：百度图片搜索
             </div>
             <button 
               onClick={onClose}
